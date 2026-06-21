@@ -1,5 +1,7 @@
 {
   "bot_name": "trader_v5_module_a",
+  "dry_run": true,
+  "cancel_open_orders_on_exit": true,
   "tradingmode": "futures",
   "margin_mode": "isolated",
 
@@ -111,8 +113,8 @@
       "exit": "on",
       "entry_fill": "on",
       "exit_fill": "on",
-      "buy_cancel": "on",
-      "sell_cancel": "on",
+      "entry_cancel": "on",
+      "exit_cancel": "on",
       "protection_trigger": "on"
     }
   },
