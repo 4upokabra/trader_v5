@@ -1,0 +1,29 @@
+.env
+*.log
+*.pyc
+__pycache__/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Freqtrade data
+module_a/user_data/data/
+module_a/user_data/logs/
+module_a/user_data/backtest_results/
+module_a/user_data/hyperopt_results/
+module_a/user_data/models/
+
+# Database dumps
+*.sql.gz
+*.dump
+
+# Grafana state
+monitoring/grafana/data/
+
+# Secrets
+*.pem
+*.key
+secrets/

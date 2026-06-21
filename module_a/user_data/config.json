@@ -1,0 +1,140 @@
+{
+  "bot_name": "trader_v5_module_a",
+  "tradingmode": "futures",
+  "margin_mode": "isolated",
+
+  "exchange": {
+    "name": "okx",
+    "key": "${OKX_API_KEY}",
+    "secret": "${OKX_API_SECRET}",
+    "password": "${OKX_PASSPHRASE}",
+    "ccxt_config": {
+      "defaultType": "swap"
+    },
+    "ccxt_async_config": {
+      "defaultType": "swap"
+    },
+    "pair_whitelist": [
+      "BTC/USDC:USDC",
+      "ETH/USDC:USDC",
+      "SOL/USDC:USDC",
+      "BNB/USDC:USDC",
+      "AVAX/USDC:USDC"
+    ],
+    "pair_blacklist": []
+  },
+
+  "stake_currency": "USDC",
+  "stake_amount": "unlimited",
+  "tradable_balance_ratio": 0.99,
+  "fiat_display_currency": "EUR",
+
+  "timeframe": "1h",
+  "timeframe_detail": "5m",
+
+  "max_open_trades": 5,
+  "minimal_roi": {
+    "0": 100
+  },
+
+  "stoploss": -0.99,
+  "trailing_stop": false,
+
+  "entry_pricing": {
+    "price_side": "same",
+    "use_order_book": false,
+    "order_book_top": 1
+  },
+  "exit_pricing": {
+    "price_side": "same",
+    "use_order_book": false,
+    "order_book_top": 1
+  },
+
+  "order_types": {
+    "entry": "market",
+    "exit": "market",
+    "stoploss": "market",
+    "stoploss_on_exchange": true
+  },
+
+  "freqai": {
+    "enabled": true,
+    "purge_old_models": 2,
+    "train_period_days": 90,
+    "backtest_period_days": 30,
+    "live_retrain_hours": 168,
+    "identifier": "trend_lgbm_v1",
+    "feature_parameters": {
+      "include_timeframes": ["1h", "4h", "1d"],
+      "include_corr_pairlist": [
+        "BTC/USDC:USDC",
+        "ETH/USDC:USDC"
+      ],
+      "label_period_candles": 24,
+      "include_shifted_candles": 2,
+      "DI_threshold": 0.9,
+      "weight_factor": 0.9,
+      "principal_component_analysis": false,
+      "use_SVM_to_remove_outliers": true,
+      "indicator_periods_candles": [14, 24, 48, 96],
+      "noise_standard_deviation": 0.05
+    },
+    "data_split_parameters": {
+      "test_size": 0.15,
+      "random_state": 42
+    },
+    "model_training_parameters": {
+      "n_estimators": 500,
+      "learning_rate": 0.05,
+      "num_leaves": 64,
+      "max_depth": -1,
+      "min_child_samples": 50,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "reg_alpha": 0.1,
+      "reg_lambda": 0.1,
+      "n_jobs": -1,
+      "verbose": -1
+    }
+  },
+
+  "telegram": {
+    "enabled": true,
+    "token": "${TELEGRAM_BOT_TOKEN}",
+    "chat_id": "${TELEGRAM_CHAT_ID}",
+    "notification_settings": {
+      "status": "on",
+      "warning": "on",
+      "startup": "on",
+      "entry": "on",
+      "exit": "on",
+      "entry_fill": "on",
+      "exit_fill": "on",
+      "buy_cancel": "on",
+      "sell_cancel": "on",
+      "protection_trigger": "on"
+    }
+  },
+
+  "api_server": {
+    "enabled": true,
+    "listen_ip_address": "0.0.0.0",
+    "listen_port": 8080,
+    "verbosity": "error",
+    "enable_openapi": false,
+    "jwt_secret_key": "change_me_jwt_secret",
+    "CORS_origins": [],
+    "username": "freqtrade",
+    "password": "change_me_frequi_password"
+  },
+
+  "initial_state": "running",
+  "force_entry_enable": false,
+  "internals": {
+    "process_throttle_secs": 5
+  },
+
+  "dataformat_ohlcv": "feather",
+  "dataformat_trades": "feather"
+}

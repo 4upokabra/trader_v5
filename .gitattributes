@@ -1,0 +1,22 @@
+# Default: auto line endings
+* text=auto
+
+# Shell scripts must use LF (Linux deployment)
+*.sh text eol=lf
+
+# Python files: LF
+*.py text eol=lf
+
+# SQL: LF
+*.sql text eol=lf
+
+# Docker: LF
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
+
+# Windows-safe: JSON, YAML, md, txt use auto
+*.json text=auto
+*.yml text=auto
+*.yaml text=auto
+*.md text=auto
+*.txt text=auto

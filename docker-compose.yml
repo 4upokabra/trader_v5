@@ -1,0 +1,123 @@
+version: "3.9"
+
+x-common-env: &common-env
+  env_file: .env
+
+services:
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Infrastructure
+  # ──────────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./shared/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trader_net
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${POSTGRES_PASSWORD}
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trader_net
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Module A — Freqtrade + FreqAI (LightGBM)
+  # ──────────────────────────────────────────────────────────────────────────────
+  module_a:
+    build:
+      context: ./module_a
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *common-env
+    volumes:
+      - ./module_a/user_data:/freqtrade/user_data
+      - module_a_models:/freqtrade/user_data/models
+    command: >
+      trade
+      --config /freqtrade/user_data/config.json
+      --strategy TrendMLStrategy
+      --db-url postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      --logfile /freqtrade/user_data/logs/freqtrade.log
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trader_net
+
+  # Claude overlay runs as a separate lightweight service
+  claude_overlay:
+    build:
+      context: ./module_a/overlay
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trader_net
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Module B — Funding Rate Arbitrage
+  # ──────────────────────────────────────────────────────────────────────────────
+  module_b:
+    build:
+      context: ./module_b
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *common-env
+    volumes:
+      # Mount shared so module_b can import alerts, config, etc.
+      - ./shared:/app/shared:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trader_net
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Circuit Breaker / System Monitor (watches both modules)
+  # ──────────────────────────────────────────────────────────────────────────────
+  circuit_breaker:
+    build:
+      context: ./shared
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - trader_net
+
+volumes:
+  postgres_data:
+  grafana_data:
+  module_a_models:
+
+networks:
+  trader_net:
+    driver: bridge
