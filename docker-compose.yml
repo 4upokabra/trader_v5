@@ -55,6 +55,7 @@ services:
     volumes:
       - ./module_a/user_data:/freqtrade/user_data
       - module_a_models:/freqtrade/user_data/models
+      - overlay_state:/overlay_state:ro
     command: >
       trade
       --config /freqtrade/user_data/config.json
@@ -74,6 +75,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     <<: *common-env
+    volumes:
+      - overlay_state:/overlay_state
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +110,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     <<: *common-env
+    volumes:
+      - overlay_state:/overlay_state
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,6 +122,7 @@ volumes:
   postgres_data:
   grafana_data:
   module_a_models:
+  overlay_state:    # shared between claude_overlay (rw) and module_a, circuit_breaker (ro)
 
 networks:
   trader_net:

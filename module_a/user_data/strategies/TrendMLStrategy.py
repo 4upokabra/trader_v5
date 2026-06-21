@@ -14,6 +14,7 @@ safety net only and should never trigger in normal operation.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from functools import reduce
@@ -233,71 +234,34 @@ class TrendMLStrategy(IStrategy):
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
+    # Path to the JSON file written by the overlay service (shared volume)
+    _OVERLAY_STATE_FILE = os.environ.get("OVERLAY_STATE_FILE", "/overlay_state/overlay_state.json")
+    _HALT_FLAG_FILE = os.environ.get("HALT_FLAG_FILE", "/overlay_state/halt.flag")
+
     def _get_overlay_multiplier(self, pair: str) -> float:
         """
         Returns 0.0 (veto), 0.5 (reduced), or 1.0 (full size).
-        Reads from the overlay_log table — latest entry per pair from today.
-        Fails open (returns 1.0) so Claude API outage doesn't stop trading.
+        Reads from a JSON file on the shared volume written by overlay_service.
+        Fails open (1.0) if overlay is disabled, file missing, or unreadable.
         """
         if os.environ.get("CLAUDE_OVERLAY_ENABLED", "false").lower() != "true":
             return 1.0
-
         try:
-            import psycopg2
-            import os
-            conn = psycopg2.connect(
-                host=os.environ.get("POSTGRES_HOST", "postgres"),
-                dbname=os.environ.get("POSTGRES_DB", "trader_v5"),
-                user=os.environ.get("POSTGRES_USER", "trader"),
-                password=os.environ.get("POSTGRES_PASSWORD", ""),
-            )
-            with conn.cursor() as cur:
-                cur.execute(
-                    """SELECT anomaly_flag, sentiment, action
-                       FROM overlay_log
-                       WHERE pair = %s
-                         AND created_at >= NOW() - INTERVAL '26 hours'
-                       ORDER BY created_at DESC
-                       LIMIT 1""",
-                    (pair,),
-                )
-                row = cur.fetchone()
-            conn.close()
-
-            if row is None:
-                return 1.0  # No overlay data → fail open
-
-            anomaly_flag, sentiment, action = row
-            if anomaly_flag or action == "veto":
+            with open(self._OVERLAY_STATE_FILE) as f:
+                state = json.load(f)
+            entry = state.get(pair)
+            if entry is None:
+                return 1.0
+            action = entry.get("action", "pass")
+            if action == "veto":
                 return 0.0
             if action == "reduce_50":
                 return 0.5
             return 1.0
-
         except Exception as exc:
-            logger.warning("Overlay DB read failed (%s) — using full size", exc)
+            logger.warning("Overlay state file unreadable (%s) — using full size", exc)
             return 1.0
 
     def _is_halted(self) -> bool:
-        try:
-            import psycopg2
-            import os
-            conn = psycopg2.connect(
-                host=os.environ.get("POSTGRES_HOST", "postgres"),
-                dbname=os.environ.get("POSTGRES_DB", "trader_v5"),
-                user=os.environ.get("POSTGRES_USER", "trader"),
-                password=os.environ.get("POSTGRES_PASSWORD", ""),
-            )
-            with conn.cursor() as cur:
-                cur.execute(
-                    """SELECT details->>'halt'
-                       FROM system_events
-                       WHERE source = 'circuit_breaker' AND level = 'critical'
-                       ORDER BY occurred_at DESC
-                       LIMIT 1"""
-                )
-                row = cur.fetchone()
-            conn.close()
-            return row is not None and row[0] == "true"
-        except Exception:
-            return False  # fail open
+        """Circuit breaker: halt flag is written as a plain file by the shared service."""
+        return os.path.exists(self._HALT_FLAG_FILE)

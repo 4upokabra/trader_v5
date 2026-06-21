@@ -20,6 +20,7 @@ from config import DB, RiskParams
 logger = logging.getLogger(__name__)
 
 HALT_FLAG_KEY = "circuit_breaker_halt"
+HALT_FLAG_FILE = os.environ.get("HALT_FLAG_FILE", "/overlay_state/halt.flag")
 POLL_INTERVAL = 60  # seconds
 
 
@@ -52,9 +53,16 @@ async def _set_halt(pool: asyncpg.Pool, halt: bool) -> None:
         "HALT engaged — manual review required before restart" if halt else "HALT cleared",
         {"halt": halt},
     )
-    # Write to a simple key-value table (reuse system_events as flag store via details)
-    # Both modules query: SELECT details->>'halt' FROM system_events
-    #   WHERE source='circuit_breaker' ORDER BY occurred_at DESC LIMIT 1
+    # Write / remove the halt flag file so module_a strategy can check it
+    # without a DB connection (os.path.exists is the check)
+    os.makedirs(os.path.dirname(HALT_FLAG_FILE), exist_ok=True)
+    if halt:
+        open(HALT_FLAG_FILE, "w").close()
+    else:
+        try:
+            os.remove(HALT_FLAG_FILE)
+        except FileNotFoundError:
+            pass
 
 
 async def is_halted(pool: asyncpg.Pool) -> bool:

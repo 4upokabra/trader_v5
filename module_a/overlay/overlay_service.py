@@ -116,6 +116,25 @@ def _determine_action(result: dict, sentiment_threshold: float) -> str:
     return "pass"
 
 
+STATE_FILE = os.environ.get("OVERLAY_STATE_FILE", "/overlay_state/overlay_state.json")
+
+
+def _write_state_file(state: dict) -> None:
+    """
+    Write overlay state to a JSON file on the shared volume.
+    The strategy reads this file directly — no DB dependency in the hot path.
+    Atomic write via temp file to avoid partial reads.
+    """
+    import tempfile
+    path = STATE_FILE
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f)
+    os.replace(tmp, path)
+    logger.info("Overlay state written to %s", path)
+
+
 async def run_overlay(pool: asyncpg.Pool) -> None:
     sentiment_threshold = float(os.environ.get("OVERLAY_SENTIMENT_THRESHOLD", "-0.5"))
 
@@ -127,9 +146,13 @@ async def run_overlay(pool: asyncpg.Pool) -> None:
     client = anthropic.AsyncAnthropic(api_key=api_key)
     logger.info("Starting overlay run for %d pairs", len(PAIRS))
 
+    # State dict written to shared volume for fast file reads by the strategy
+    state: dict[str, dict] = {}
+
     for pair in PAIRS:
         result = await assess_pair(client, pair)
         action = _determine_action(result, sentiment_threshold)
+        state[pair] = {"action": action, **result}
 
         await pool.execute(
             """INSERT INTO overlay_log
@@ -151,8 +174,9 @@ async def run_overlay(pool: asyncpg.Pool) -> None:
         else:
             logger.info("PASS for %s (sentiment=%.2f)", pair, result.get("sentiment", 0))
 
-        # Small delay between API calls to avoid rate limits
         await asyncio.sleep(2)
+
+    _write_state_file(state)
 
 
 async def main() -> None:
