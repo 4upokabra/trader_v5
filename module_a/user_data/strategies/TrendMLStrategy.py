@@ -15,6 +15,7 @@ safety net only and should never trigger in normal operation.
 from __future__ import annotations
 
 import logging
+import os
 from functools import reduce
 
 import numpy as np
@@ -238,6 +239,9 @@ class TrendMLStrategy(IStrategy):
         Reads from the overlay_log table — latest entry per pair from today.
         Fails open (returns 1.0) so Claude API outage doesn't stop trading.
         """
+        if os.environ.get("CLAUDE_OVERLAY_ENABLED", "false").lower() != "true":
+            return 1.0
+
         try:
             import psycopg2
             import os

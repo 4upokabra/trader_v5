@@ -156,6 +156,11 @@ async def run_overlay(pool: asyncpg.Pool) -> None:
 
 
 async def main() -> None:
+    if os.environ.get("CLAUDE_OVERLAY_ENABLED", "false").lower() != "true":
+        logger.info("Claude overlay is disabled (CLAUDE_OVERLAY_ENABLED != true). Sleeping indefinitely.")
+        while True:
+            await asyncio.sleep(3600)
+
     pool = await asyncpg.create_pool(
         host=os.environ.get("POSTGRES_HOST", "postgres"),
         port=int(os.environ.get("POSTGRES_PORT", "5432")),
